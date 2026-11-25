@@ -170,6 +170,11 @@
     /* __PHRASES_ENTRIES__ */
   ]);
 
+  // 社区来源词条只参与整句精确匹配：片段替换会先于规则层改写已校验的整句译文。
+  const exactPhrases = new Map([
+    /* __EXACT_PHRASES_ENTRIES__ */
+  ]);
+
   // 根据长度倒序排序
   /* __RULES_MODULE__ */
 

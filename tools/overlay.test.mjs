@@ -2010,3 +2010,50 @@ test('2.34.0 model picker New badges are distinct from create actions', () => {
     assert.equal(text.nodeValue, expected, 'reprocessing changed the translation');
   }
 });
+
+test('community phrases apply on whole strings only and never rewrite curated sentences', () => {
+  // 社区词条整句命中
+  assert.equal(translate('MCP server'), 'MCP 服务器');
+  assert.equal(translate('Waiting for approval'), '等待审批');
+  // 大小写不同的标识符不命中社区层
+  assert.equal(translate('plugin'), 'plugin');
+  assert.equal(translate('Plugin'), '插件');
+  // 社区词条不得作为片段改写已校验的长句
+  assert.equal(
+    translate('Inherits your Global Permissions when working in these conversations.'),
+    '在这些对话中工作时继承您的全局权限。',
+  );
+  // Google 产品名保持原样
+  for (const name of ['Google Docs', 'Google Sheets', 'Google Slides']) assert.equal(translate(name), name);
+});
+
+test('non-breaking spaces are folded before dictionary lookup', () => {
+  assert.equal(translate('Waiting\u00A0for\u00A0approval'), '等待审批');
+  assert.equal(translate('MCP\u00A0server'), 'MCP 服务器');
+  // 未命中的原文保留原字符，不做无意义改写
+  const unknown = 'Unmapped\u00A0status text';
+  assert.equal(translate(unknown), unknown);
+});
+
+test('quota and credit notices keep model names and translated units', () => {
+  const cases = [
+    ['Your quota for Gemini 4 Argon has been reached. Switch to another available model to continue.',
+      '你在 Gemini 4 Argon 的配额已用尽。请切换到其他可用模型继续。'],
+    ["Your plan's baseline quota will refresh on 2026/12/1 08:00:00.",
+      '你的套餐基础额度将于 2026/12/1 08:00:00 刷新。'],
+    ['To continue using this model now, enable AI Credit overages.',
+      '如需立即继续使用此模型，请启用 AI 积分超额使用。'],
+    ['3 models selected', '已选择 3 个模型'],
+  ];
+  for (const [input, expected] of cases) {
+    assert.equal(translate(input), expected);
+    assert.equal(translate(expected), expected);
+  }
+  assert.match(translate('Model unavailable, retrying in 12s (attempt 2/5)'), /^模型暂不可用，12 秒后重试（第 2\/5 次）$/);
+});
+
+test('short durations accept millisecond and decimal units', () => {
+  assert.match(translate('Thought for 1.5s'), /^已思考 1\.5 秒$/);
+  assert.match(translate('Worked for 800ms'), /^已工作 800 毫秒$/);
+  assert.match(translate('Worked for 2h 30m'), /^已工作 2 小时 30 分钟$/);
+});

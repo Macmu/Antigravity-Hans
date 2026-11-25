@@ -6,6 +6,8 @@ for (const [k, v] of phrases.entries()) {
   lowerPhrases.set(k.toLowerCase(), v);
 }
 
+// 社区词条按原样大小写整句匹配：避免把小写标识符（如 plugin）当作界面文案
+
 // 词条正则缓存
 const regexCache = new Map();
 function getPhraseRegex(source) {
@@ -22,6 +24,7 @@ function getPhraseRegex(source) {
 
 // 精准独立词汇匹配（支持快捷键与末尾标点），防止短词在长句中误伤
 function matchExactPhrase(trimmed) {
+  if (exactPhrases.has(trimmed)) return exactPhrases.get(trimmed);
   if (phrases.has(trimmed)) return phrases.get(trimmed);
   const low = trimmed.toLowerCase();
   if (lowerPhrases.has(low)) return lowerPhrases.get(low);
@@ -130,10 +133,11 @@ function localizeEnglishDates(str) {
 function formatShortDuration(str) {
   return str
     .trim()
-    .replace(/(\d+)\s*d\b/gi, '$1 天')
-    .replace(/(\d+)\s*h\b/gi, '$1 小时')
-    .replace(/(\d+)\s*m\b/gi, '$1 分钟')
-    .replace(/(\d+)\s*s\b/gi, '$1 秒')
+    .replace(/(\d+(?:\.\d+)?)\s*ms\b/gi, '$1 毫秒')
+    .replace(/(\d+(?:\.\d+)?)\s*d\b/gi, '$1 天')
+    .replace(/(\d+(?:\.\d+)?)\s*h\b/gi, '$1 小时')
+    .replace(/(\d+(?:\.\d+)?)\s*m\b/gi, '$1 分钟')
+    .replace(/(\d+(?:\.\d+)?)\s*s\b/gi, '$1 秒')
     .replace(/\s+/g, ' ');
 }
 
@@ -226,11 +230,11 @@ const dynamicPatterns = [
   [/^(\s*)example:(\r?\n)source ~\/\.jetski_shell_setup(\s*)$/i, (_m, before, newline, after) => `${before}示例：${newline}source ~/.jetski_shell_setup${after}`],
 
   // 动态时间与耗时
-  [/Worked for ((?:\d+\s*[dhms]\b\s*)+)/gi, (_m, dur) => '已工作 ' + formatShortDuration(dur)],
-  [/Stopped after ((?:\d+\s*[dhms]\b\s*)+)/gi, (_m, dur) => '工作 ' + formatShortDuration(dur) + '后停止'],
-  [/Thought for ((?:\d+\s*[dhms]\b\s*)+)/gi, (_m, dur) => '已思考 ' + formatShortDuration(dur)],
-  [/Thinking for ((?:\d+\s*[dhms]\b\s*)+)/gi, (_m, dur) => '已思考 ' + formatShortDuration(dur)],
-  [/Compacting \u00b7 ((?:\d+\s*[dhms]\b\s*)+)/gi, (_m, dur) => '正在压缩上下文 · ' + formatShortDuration(dur)],
+  [/Worked for ((?:\d+(?:\.\d+)?(?:ms|d|h|m|s)\b\s*)+)/gi, (_m, dur) => '已工作 ' + formatShortDuration(dur)],
+  [/Stopped after ((?:\d+(?:\.\d+)?(?:ms|d|h|m|s)\b\s*)+)/gi, (_m, dur) => '工作 ' + formatShortDuration(dur) + '后停止'],
+  [/Thought for ((?:\d+(?:\.\d+)?(?:ms|d|h|m|s)\b\s*)+)/gi, (_m, dur) => '已思考 ' + formatShortDuration(dur)],
+  [/Thinking for ((?:\d+(?:\.\d+)?(?:ms|d|h|m|s)\b\s*)+)/gi, (_m, dur) => '已思考 ' + formatShortDuration(dur)],
+  [/Compacting \u00b7 ((?:\d+(?:\.\d+)?(?:ms|d|h|m|s)\b\s*)+)/gi, (_m, dur) => '正在压缩上下文 · ' + formatShortDuration(dur)],
   [/Fold lines (\d+)-(\d+)/g, '折叠第 $1-$2 行'],
   [/(\d+)\s*minutes?\s*ago\b/gi, '$1 分钟前'],
   [/(\d+)\s*hours?\s*ago\b/gi, '$1 小时前'],
@@ -250,6 +254,16 @@ const dynamicPatterns = [
     return `您${action}${typeZh}额度，将在 ${formatRelativeTime(time)}后完全刷新。`;
   }],
   [/^(\d+\s*(?:years?|months?|weeks?|days?|hours?|minutes?|seconds?)(?:,\s*\d+\s*(?:years?|months?|weeks?|days?|hours?|minutes?|seconds?))*)$/gi, (_m, dur) => formatRelativeTime(dur)],
+
+  // 配额与积分提示：整句模板，模型名与时间原样保留
+  [/^Your quota for (.+?) will reset on (.+?)\. Switch to another available model to continue\.$/i, (_m, model, when) => `你在 ${model} 的配额将于 ${when} 重置。请切换到其他可用模型继续。`],
+  [/^Your quota for (.+?) has been reached\. Switch to another available model to continue\.$/i, (_m, model) => `你在 ${model} 的配额已用尽。请切换到其他可用模型继续。`],
+  [/^Your plan's baseline quota will refresh on (.+?)\.$/i, (_m, when) => `你的套餐基础额度将于 ${when} 刷新。`],
+  [/^To continue using this model now, enable AI Credit overages\.$/i, '如需立即继续使用此模型，请启用 AI 积分超额使用。'],
+  [/^You need (?:at least (\d+)|more) AI Credits to send messages\. To continue using (.+?) now, purchase more AI Credits\.$/i, (_m, min, model) => `${min ? `发送消息至少需要 ${min} 个 AI 积分` : '发送消息需要更多 AI 积分'}。如需立即继续使用 ${model}，请购买更多 AI 积分。`],
+  [/Model unavailable, retrying in (\d+)s \(attempt (\d+)\/(\d+)\)/gi, (_m, sec, n, total) => `模型暂不可用，${sec} 秒后重试（第 ${n}/${total} 次）`],
+  [/Model unavailable, retrying \(attempt (\d+)\/(\d+)\)/gi, (_m, n, total) => `模型暂不可用，正在重试（第 ${n}/${total} 次）`],
+  [/^(\d+) models? selected$/i, '已选择 $1 个模型'],
 
   // 动态用量与数量词
   [/(\d+(?:\.\d+)?)% of the customization budget is available\./g, '自定义预算还剩 $1%。'],
@@ -275,7 +289,7 @@ const dynamicPatterns = [
   [/^(\d+)h$/g, '$1小时'],
   [/^(\d+)m$/g, '$1分钟'],
   [/^(\d+)s$/g, '$1秒'],
-  [/^Resets in ((?:\d+\s*[dhms]\b\s*)+)$/gi, (_m, dur) => `${formatShortDuration(dur)}后重置`],
+  [/^Resets in ((?:\d+(?:\.\d+)?(?:ms|d|h|m|s)\b\s*)+)$/gi, (_m, dur) => `${formatShortDuration(dur)}后重置`],
   [/^(\d+(?:\.\d+)?)%\s*left$/i, '剩余 $1%'],
 
   // 动态下拉与控件参数
@@ -340,6 +354,12 @@ function replacePhrase(value, source, target) {
 // 核心翻译流水线：精准完全匹配优先 -> 动态进度栏 -> 长句及复合短语子串 -> 动态变量规则
 function translate(value) {
   if (!value || !/[A-Za-z]/.test(value)) return value;
+  // 上游模板常用不换行空格分隔词元，先归一化再查词库；未命中时保留原文不动。
+  if (/[\u00A0\u2007\u202F]/.test(value)) {
+    const folded = value.replace(/[\u00A0\u2007\u202F]/g, ' ');
+    const foldedResult = translate(folded);
+    return foldedResult === folded ? value : foldedResult;
+  }
   if (customTranslations.size) {
     const whole = value.trim();
     const custom = customTranslations.get(whole.toLowerCase());

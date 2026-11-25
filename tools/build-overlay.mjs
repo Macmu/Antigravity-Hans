@@ -29,6 +29,11 @@ const DICT_FILES = [
   'ide.json',
 ];
 
+// 社区来源词条：仅参与整句精确匹配，不进片段替换表
+const COMMUNITY_FILES = [
+  'community.json',
+];
+
 const POLARITY_POSITIVE = /(allow|enable|approve|accept|trust|permit|always|grant)/i;
 const POLARITY_NEGATIVE = /(deny|disable|reject|block|never|revoke|restrict|without|denied)/i;
 const ZH_PERMISSIVE = /(允许|启用|批准|接受|信任|始终|授权)/;
@@ -91,6 +96,23 @@ export function buildOverlayContent() {
     }
   }
 
+  // 社区词条单列一层：键值不再进入片段替换表，仅在整句相等时生效
+  const exactEntries = [];
+  for (const fileName of COMMUNITY_FILES) {
+    const filePath = path.join(DICT_DIR, fileName);
+    if (!fs.existsSync(filePath)) continue;
+    const dict = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    for (const [key, val] of Object.entries(dict)) {
+      if (!validatePhraseEntry(fileName, key, val, errors)) continue;
+      if (seen.has(key)) {
+        errors.push(`社区词条 ${JSON.stringify(key)} 与 ${seen.get(key)} 重复，请择一保留`);
+        continue;
+      }
+      seen.set(key, fileName);
+      exactEntries.push([key, val]);
+    }
+  }
+
   if (errors.length > 0) {
     throw new Error('词库校验失败:\n' + errors.map((e) => '  - ' + e).join('\n'));
   }
@@ -100,10 +122,13 @@ export function buildOverlayContent() {
 
   const ideNlsLines = ideNls.map((item) => `    ${JSON.stringify(item)},`).join('\n');
   const phraseLines = entries.map(([k, v]) => `    [${JSON.stringify(k)}, ${JSON.stringify(v)}],`).join('\n');
+  exactEntries.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  const exactLines = exactEntries.map(([k, v]) => `    [${JSON.stringify(k)}, ${JSON.stringify(v)}],`).join('\n');
 
   if (
     !engine.includes('/* __IDE_NLS_ENTRIES__ */') ||
     !engine.includes('/* __PHRASES_ENTRIES__ */') ||
+    !engine.includes('/* __EXACT_PHRASES_ENTRIES__ */') ||
     !engine.includes('/* __RULES_MODULE__ */')
   ) {
     throw new Error('engine.js 缺少必需占位符');
@@ -112,9 +137,10 @@ export function buildOverlayContent() {
   const output = engine
     .replace('    /* __IDE_NLS_ENTRIES__ */', () => ideNlsLines)
     .replace('    /* __PHRASES_ENTRIES__ */', () => phraseLines)
+    .replace('    /* __EXACT_PHRASES_ENTRIES__ */', () => exactLines)
     .replace('  /* __RULES_MODULE__ */', () => rules);
 
-  return { output, phraseCount: entries.length, ideNlsCount: ideNls.length };
+  return { output, phraseCount: entries.length, exactCount: exactEntries.length, ideNlsCount: ideNls.length };
 }
 
 export function buildSwarmOverlayContent() {
@@ -190,13 +216,13 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       process.exit(1);
     }
     console.log(
-      `[通过] overlay 产物与源码同步（主词条 ${mainResult.phraseCount} 条，IDE NLS ${mainResult.ideNlsCount} 条，Swarm 插件 ${swarmResult.phraseCount} 条）`,
+      `[通过] overlay 产物与源码同步（主词条 ${mainResult.phraseCount} 条，社区精确 ${mainResult.exactCount} 条，IDE NLS ${mainResult.ideNlsCount} 条，Swarm 插件 ${swarmResult.phraseCount} 条）`,
     );
   } else {
     fs.writeFileSync(OUTPUT_PATH, mainResult.output, 'utf8');
     fs.writeFileSync(SWARM_OUTPUT_PATH, swarmResult.output, 'utf8');
     console.log(
-      `[成功] 已生成 resources/antigravity-hans-overlay.js（主词条 ${mainResult.phraseCount} 条，IDE NLS ${mainResult.ideNlsCount} 条）与 resources/swarm-overlay.js（Swarm 插件 ${swarmResult.phraseCount} 条）`,
+      `[成功] 已生成 resources/antigravity-hans-overlay.js（主词条 ${mainResult.phraseCount} 条，社区精确 ${mainResult.exactCount} 条，IDE NLS ${mainResult.ideNlsCount} 条）与 resources/swarm-overlay.js（Swarm 插件 ${swarmResult.phraseCount} 条）`,
     );
   }
 }
