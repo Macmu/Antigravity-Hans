@@ -9,13 +9,13 @@ import { fileURLToPath } from 'node:url';
 import './swarm-overlay.test.mjs';
 
 const source = fs.readFileSync(new URL('../resources/antigravity-hans-overlay.js', import.meta.url), 'utf8');
-const context = { window: { addEventListener() {}, removeEventListener() {}, location: { pathname: '/', href: 'http://127.0.0.1/' } }, document: { readyState: 'loading' } };
+const context = { window: { addEventListener() {}, removeEventListener() {}, location: { pathname: '/', href: 'http://127.0.0.1/' } }, document: { readyState: 'loading', addEventListener() {}, removeEventListener() {} } };
 vm.createContext(context);
 vm.runInContext(source.replace('  function run() {', '  globalThis.translateForTest = translate; globalThis.translateElementForTest = translateElement; globalThis.translateNodeForTest = translateNode; globalThis.isInAntigravityContainerForTest = isInAntigravityContainer; globalThis.createFlushSchedulerForTest = createFlushScheduler; globalThis.restoreProtectedCustomizationNamesForTest = restoreProtectedCustomizationNames; globalThis.translateKnownSlashDescriptionForTest = translateKnownSlashDescription; globalThis.translateCoordinatorWelcomeForTest = translateCoordinatorWelcome; globalThis.shouldSkipSubtreeForTest = shouldSkipSubtree;\n  function run() {'), context);
 const translate = context.translateForTest;
 
 test('updated overlays replace their observer and use the requested fingerprint', () => {
-  const fresh = { window: { addEventListener() {}, removeEventListener() {} }, document: { readyState: 'loading' } };
+  const fresh = { window: { addEventListener() {}, removeEventListener() {} }, document: { readyState: 'loading', addEventListener() {}, removeEventListener() {} } };
   vm.createContext(fresh);
   fresh.window.__antigravityZhPatchRequestedFingerprint = 'first';
   vm.runInContext(source, fresh);
@@ -1200,7 +1200,7 @@ test('custom translations keep English or apply user wording', () => {
       addEventListener() {}, removeEventListener() {}, location: { pathname: '/', href: 'http://127.0.0.1/' },
       __antigravityZhCustom: [['  request review ', ''], ['Turbo', '快速模式'], ['Default', 'Auto 模式'], ['', 'x'], 'bad', [42, null]],
     },
-    document: { readyState: 'loading' },
+    document: { readyState: 'loading', addEventListener() {}, removeEventListener() {} },
   };
   vm.createContext(ctx);
   vm.runInContext(source.replace('  function run() {', '  globalThis.translateForTest = translate;\n  function run() {'), ctx);
@@ -1500,7 +1500,7 @@ test('IDE native language supplement is version-gated, reversible, and preserves
       location: { pathname, href: `vscode-file://vscode-app${pathname}` },
       _VSCODE_NLS_LANGUAGE: language, _VSCODE_NLS_MESSAGES: messages,
     };
-    const fresh = { window, document: { readyState: 'loading' } };
+    const fresh = { window, document: { readyState: 'loading', addEventListener() {}, removeEventListener() {} } };
     vm.createContext(fresh);
     const instrumented = source.replace('  function run() {', '  globalThis.applyNls = applyIdeNlsMessages; globalThis.restoreNls = restoreIdeNlsMessages; globalThis.nlsEntries = ideNlsSupplement;\n  function run() {');
     vm.runInContext(instrumented, fresh);
@@ -1588,7 +1588,7 @@ test('IDE native supplement respects personal rules without changing unmatched e
     _VSCODE_NLS_LANGUAGE: 'zh-cn', _VSCODE_NLS_MESSAGES: messages,
     __antigravityZhCustom: [['extensions', ''], ['Click to focus this command in the terminal.', '聚焦命令']],
   };
-  const ctx = { window, document: { readyState: 'loading' } };
+  const ctx = { window, document: { readyState: 'loading', addEventListener() {}, removeEventListener() {} } };
   vm.createContext(ctx);
   vm.runInContext(source.replace('  function run() {', '  globalThis.hooks = { applyIdeNlsMessages, restoreIdeNlsMessages };\n  function run() {'), ctx);
   ctx.hooks.applyIdeNlsMessages();
@@ -1755,6 +1755,7 @@ test('IDE workbench synchronizes language and label preferences with cross-origi
       nodeType: 9, readyState: 'loading', documentElement: { lang: 'en' },
       querySelectorAll() { return []; },
       createTreeWalker() { let i = 0; return { nextNode: () => nodes[i++] ?? null }; },
+      addEventListener() {}, removeEventListener() {}
     };
     const window = {
       location,
@@ -1825,7 +1826,7 @@ test('normal app shares preferences only with the recognized Swarm plugin frame'
     removeEventListener(type, handler) { if (listeners.get(type) === handler) listeners.delete(type); },
   };
   window.top = window;
-  const ctx = { window, document: { readyState: 'loading' } };
+  const ctx = { window, document: { readyState: 'loading', addEventListener() {}, removeEventListener() {} } };
   vm.createContext(ctx);
   vm.runInContext(source.replace('  function run() {', '  globalThis.startSyncForTest = startPreferenceSync;\n  function run() {'), ctx);
   ctx.startSyncForTest();

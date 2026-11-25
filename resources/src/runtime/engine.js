@@ -16,7 +16,8 @@
   window.__antigravityZhPatchCleanup = () => {
     cancelled = true;
     observer?.disconnect();
-    window.removeEventListener('DOMContentLoaded', run);
+    window.removeEventListener('DOMContentLoaded', boot);
+    if (typeof document.removeEventListener === 'function') document.removeEventListener('readystatechange', bootRsc);
     flushScheduler?.cancel();
     restoreIdeNlsMessages();
     removePreferenceSync?.();
@@ -658,9 +659,21 @@
     mountToggleUI();
   }
 
-  if (document.readyState === 'loading') {
-    window.addEventListener('DOMContentLoaded', run, { once: true });
-  } else {
+  let booted = false;
+  const bootRsc = () => {
+    if (document.readyState !== 'loading') boot();
+  };
+  const boot = () => {
+    if (booted) return;
+    booted = true;
     run();
+  };
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', boot, { once: true });
+    if (typeof document.addEventListener === 'function') {
+      document.addEventListener('readystatechange', bootRsc, { once: true });
+    }
+  } else {
+    boot();
   }
 })();
